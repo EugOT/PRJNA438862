@@ -1,0 +1,50 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+
+```{r}
+suppressPackageStartupMessages({
+    library(readr)
+    library(stringr)
+    library(dplyr)
+    library(magrittr)
+    library(SingleCellExperiment)
+    library(scater)
+    library(BiocParallel)
+    library(biomaRt)
+    library(Seurat)
+    library(SeuratDisk)
+})
+
+sce <- read_rds("zeisel2018.rds")
+assayNames(sce) <- "counts"
+counts(sce) <- as(counts(sce), "dgCMatrix")
+sum(duplicated(rownames(sce))) # 0
+sce$cell_type %>% table()
+sce <- logNormCounts(sce)
+dim(logcounts(sce))
+assays(sce) <- assays(sce)[c("counts", "logcounts")]
+
+srt <- as.Seurat(sce)
+srt %<>% RenameCells(new.names = str_c("zeisel2018_", colnames(srt)))
+rownames(srt@meta.data) <- colnames(srt)
+Idents(srt) <- "cell_type"
+srt$tech <- "10xv1"
+srt$batch <- srt$sample_id %>% str_split_fixed(pattern = "_", n = 2) %>% .[,1]
+srt$batch %>% table()
+
+srt$orig.ident <- str_c(srt$study_id, srt$batch, "HPT", sep = "_")
+
+glimpse(srt@meta.data)
+table(srt$orig.ident)
+SaveH5Seurat(srt, filename = "zeisel2018_hpt.h5Seurat", overwrite = T)
+Convert("zeisel2018_hpt.h5Seurat", dest = "h5ad")
+
+```
+
+
